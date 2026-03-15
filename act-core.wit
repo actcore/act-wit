@@ -1,13 +1,14 @@
-package act:core@0.1.6;
+package act:core@0.2.0;
 
 interface types {
 
   /// A localizable text value.
   ///
-  /// - `plain` — a single string assumed to be in the component's `default-language`.
-  ///   Use this when localization is not needed.
+  /// - `plain` — an opaque UTF-8 string. If `std:default-language` is declared
+  ///   in the `act:component` section, the string is assumed to be in that language.
+  ///   Otherwise, the language is undefined.
   /// - `localized` — a list of (BCP 47 language-tag, text) pairs.
-  ///   MUST include an entry for `component-info.default-language`.
+  ///   If `std:default-language` is declared, SHOULD include an entry for it.
   variant localized-string {
     plain(string),
     localized(list<tuple<string, string>>),
@@ -18,32 +19,6 @@ interface types {
   /// Well-known keys use the `std:` prefix (e.g. "std:read-only", "std:timeout-ms").
   /// Third-party keys use their own namespace (e.g. "acme:priority").
   type metadata = list<tuple<string, list<u8>>>;
-
-
-  // ──────────────────────────────────────────────
-  //  Component-level types
-  // ──────────────────────────────────────────────
-
-  /// A capability required or optionally used by the component.
-  /// The `id` field is a namespaced URI (e.g. "wasi:sockets/tcp", "wasi:filesystem/types").
-  record capability {
-    id: string,
-    required: bool,
-    description: option<localized-string>,
-    metadata: metadata,
-  }
-
-  /// Top-level metadata about the component. Returned once at load time.
-  record component-info {
-    name: string,
-    version: string,
-    /// BCP 47 language tag for the component's default language.
-    /// Every localized-string in this component MUST include an entry for this language.
-    default-language: string,
-    description: localized-string,
-    capabilities: list<capability>,
-    metadata: metadata,
-  }
 
 
   // ──────────────────────────────────────────────
@@ -121,32 +96,39 @@ interface types {
   }
 }
 
+/// Component-level metadata (name, version, description, capabilities) is stored
+/// in the `act:component` WASM custom section (CBOR-encoded) and standard WASM
+/// metadata fields, not as an exported function.
+
 interface tool-provider {
   use types.{
-    component-info,
     tool-definition,
     tool-call,
     stream-event,
     list-tools-response,
     tool-error,
+    metadata,
   };
 
-  /// Returns component-level information.
-  /// The host calls this once at load time and caches the result.
-  get-info: func() -> component-info;
+  /// Returns a JSON Schema (type "object") describing the metadata keys
+  /// this component accepts. Returns `none` if no metadata is required.
+  ///
+  /// When called with empty metadata, the component MUST return immediately
+  /// without performing any network I/O.
+  ///
+  /// The host MAY call this multiple times with progressively filled
+  /// metadata to support iterative schema discovery for bridge components.
+  /// Subsequent calls with non-empty metadata MAY perform network I/O
+  /// (e.g. fetching a remote component's schema).
+  get-metadata-schema: async func(metadata: metadata) -> option<string>;
 
-  /// Returns a JSON Schema (or JSON Structure) string describing the
-  /// configuration this component accepts.
-  /// Returns `none` if the component does not require configuration.
-  get-config-schema: func() -> option<string>;
-
-  /// Returns the list of tools available for the given configuration.
-  /// `config` is dCBOR validated against the schema from `get-config-schema`.
+  /// Returns the list of tools available for the given metadata.
   /// Async because bridge components may need to fetch remote schemas.
-  list-tools: async func(config: option<list<u8>>) -> result<list-tools-response, tool-error>;
+  list-tools: async func(metadata: metadata) -> result<list-tools-response, tool-error>;
 
   /// Invokes a tool and returns a stream of results.
+  /// Metadata is carried inside `tool-call.metadata`.
   /// Each stream-event is either content or a terminal error.
-  call-tool: async func(config: option<list<u8>>, call: tool-call) -> stream<stream-event>;
+  call-tool: async func(call: tool-call) -> stream<stream-event>;
 }
 

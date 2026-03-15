@@ -1,4 +1,4 @@
-package act:core@0.1.6;
+package act:core@0.2.0;
 
 interface event-types {
   use types.{localized-string, metadata};
@@ -25,6 +25,7 @@ interface event-types {
 
 interface event-provider {
   use event-types.{event-type-info, event};
+  use types.{metadata};
 
   /// Returns the list of event types this component can emit.
   /// The host calls this at load time and MAY cache the result.
@@ -32,5 +33,5 @@ interface event-provider {
 
   /// Opens a stream of events. The host reads events as they arrive.
   /// The stream stays open until the component closes it or the host drops the handle.
-  subscribe: async func(config: option<list<u8>>) -> stream<event>;
+  subscribe: async func(metadata: metadata) -> stream<event>;
 }

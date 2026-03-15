@@ -1,4 +1,4 @@
-package act:core@0.1.6;
+package act:core@0.2.0;
 
 interface resource-types {
   use types.{localized-string, metadata};
@@ -24,11 +24,12 @@ interface resource-types {
 
 interface resource-provider {
   use resource-types.{resource-info, resource-response};
+  use types.{metadata};
 
   /// Returns the list of resources available from this component.
-  list-resources: async func(config: option<list<u8>>) -> list<resource-info>;
+  list-resources: async func(metadata: metadata) -> list<resource-info>;
 
   /// Returns a resource by URI.
   /// Returns a resource-response with mime-type, metadata, and a byte stream.
-  get-resource: async func(config: option<list<u8>>, uri: string) -> resource-response;
+  get-resource: async func(metadata: metadata, uri: string) -> resource-response;
 }
